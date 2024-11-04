@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>P5.js Game</title>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f0f0f0;
+    }
+    #canvas-container {
+      position: relative;
+      width: 1000px;
+      height: 1000px;
+    }
+    #examine-window {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      width: 300px;
+      padding: 15px;
+      background-color: rgba(0, 0, 0, 0.8);
+      color: white;
+      font-size: 20px;
+      font-family: 'Orbitron', sans-serif;
+      border-radius: 5px;
+      display: none;
+    }
+    #score-display {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      font-size: 30px;
+      font-family: 'Orbitron', sans-serif;
+      color: #00ff00;
+      background-color: rgba(0, 0, 0, 0.8);
+      padding: 10px;
+      border-radius: 5px;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="examine-window"></div>
+  <div id="score-display">FAVORABILITY: ALIEN: 0 | HUMAN: 0</div>
+  <script>
+    let bgImage;
+    let hoverText = "";
+    let isHovering = false;
+    let messageBubble = null;
+    let options = [];
+    let cachedOptionWidths = {};
+    let examineWindow;
+    let alienScore = 0;
+    let humanScore = 0;
+    let gameEnded = false;
+
+    const zones = [
+      {
+        name: "ALIEN",
+        x1: 19, y1: 277.66, x2: 193, y2: 690.66,
+        text: "A fellow crew member, doing... something mysterious. Should you check what they're up to?",
+        examineTexts: [
+          "The alien looks busy pressing buttons and muttering something about 'galactic coordinates.' They’re either saving the day or ordering takeout—hard to tell.",
+          "The alien seems to be arguing with the controls. You hear something about 'hyperspace detours' and 'astro-navigation manuals.' Maybe they're lost?",
+          "The alien glances at you briefly before focusing back on the buttons. They seem to be in deep thought, or maybe they're just daydreaming about space pizza.",
+          "The alien is furiously typing—perhaps composing an intergalactic tweet? You’re not sure, but it seems pretty intense."
+        ],
+        hasInteracted: false,
+        interactChoices: [
+          { text: "Provide moral support by patting them on the back", score: 'alien', outcome: "The alien almost loses their balance and glares at you for a moment, but then sighs and gives you a thumbs-up. You sense they now tolerate you slightly more." },
+          { text: "Convince the crew to give the abductee a cup of water", score: 'human', outcome: "The abductee looks grateful as they take a hesitant sip from the strange cup. Hydration helps—they now look only mildly petrified instead of entirely." }
+        ]
+      },
+      {
+        name: "ABDUCTEE",
+        x1: 399, y1: 372.66, x2: 582, y2: 694.66,
+        text: "This abductee seems oddly calm—maybe they're just enjoying the free ride?",
+        examineTexts: [
+          "The abductee is staring blankly, almost like they've done this before. Maybe they're hoping for a frequent abduction loyalty card?",
+          "The abductee appears to be humming a tune, blissfully unaware. Either they've accepted their fate or they're really into this abduction vibe.",
+          "The abductee gives a thumbs up... to nobody in particular. They seem to be having the time of their life, almost like they're on an amusement park ride.",
+          "The abductee is nodding off. Maybe this whole experience just isn't that exciting for them anymore."
+        ],
+        hasInteracted: false,
+        interactChoices: [
+          { text: "Pretend they're part of an experiment and take notes", score: 'alien', outcome: "You stand in front of the abductee with a notepad, scribbling nonsense while nodding. They look bewildered and a little terrified—mission successful!" },
+          { text: "Explain that they're on an intergalactic 'cruise'", score: 'human', outcome: "You tell the abductee they're part of an exclusive space cruise. They seem relieved, though they start asking about the on-board buffet." }
+        ]
+      },
+      {
+        name: "NIGHTLIGHT",
+        x1: 320, y1: 124, x2: 611, y2: 201,
+        text: "A strange glowing light beaming down on the abductee. It looks suspiciously dramatic.",
+        examineTexts: [
+          "The mysterious light beams down like it's auditioning for a role in a sci-fi movie. It’s got the whole 'dramatic flair' thing nailed down.",
+          "The light flickers slightly, almost like it's trying to send a signal. Or maybe it's just trying to be spooky for effect.",
+          "The beam seems to be adjusting itself—trying to find the most dramatic angle to shine on the abductee. It’s quite the perfectionist.",
+          "The light seems to be pulsing to an unknown rhythm. If only you knew what station it's tuned into—it's got a nice beat!"
+        ],
+        hasInteracted: false,
+        interactChoices: [
+          { text: "Add spooky sound effects to the light", score: 'alien', outcome: "You activate the 'spooky sound' feature, and the light begins to emit eerie, warbling sounds. The abductee shivers and looks around nervously—perfect." },
+          { text: "Dim the light so it's less harsh", score: 'human', outcome: "You turn the brightness down to 'ambient mood.' The abductee smiles, probably grateful they aren't the main course at an alien interrogation barbecue anymore." }
+        ]
+      },
+      {
+        name: "RURAL_MONITOR",
+        x1: 148, y1: 266, x2: 337, y2: 420,
+        text: "A monitor showing a peaceful scene of trees and a lake. Perhaps it's watching for... rogue deer?",
+        examineTexts: [
+          "The rural monitor shows a serene view of trees and water. Nothing seems out of place, but you get the feeling you're missing something. Is there something hiding?",
+          "The rural monitor shows a deer, standing perfectly still, staring right at the camera. It’s unsettling, like it knows more than it should.",
+          "A gentle breeze rustles the leaves. Nothing else happens. Just peaceful... or perhaps a bit too peaceful?",
+          "The screen blinks briefly, and for a split second, you think you see something move in the background. Was that a shadow or just your imagination?"
+        ],
+        hasInteracted: false,
+        interactChoices: [
+          { text: "Activate the 'wildlife deterrent' siren", score: 'alien', outcome: "A loud siren blares from the monitor, and the deer on screen looks directly at you before sprinting away. Well, at least you won this round." },
+          { text: "Turn on soothing background music", score: 'human', outcome: "You add some soothing background music to the scene. The deer seems to relax, and the abductee looks a bit more at peace as well. Nature and chill." }
+        ]
+      },
+      {
+        name: "SUBURB_MONITOR",
+        x1: 603, y1: 285, x2: 836, y2: 421,
+        text: "Who knew suburbia was this interesting? This monitor definitely seems to think so.",
+        examineTexts: [
+          "The suburb monitor shows someone walking a dog. It’s quiet and calm, but the dog keeps looking directly at the camera... almost like it knows you’re watching.",
+          "The dog on the screen has now sat down, but its eyes are still on the camera. It's like it's trying to communicate something important... or it's just hungry.",
+          "The suburbanite is now watering plants, completely unaware of being watched. The plants look unusually well-watered though... suspiciously so.",
+          "A kid on a bicycle zooms by, seemingly making eye contact with the camera. For a moment, you feel like they know something you don't."
+        ],
+        hasInteracted: false,
+        interactChoices: [
+          { text: "Add a laser pointer to make the dog chase it", score: 'alien', outcome: "You activate a laser pointer, and the dog immediately pounces, chasing it in circles. The human walker looks thoroughly confused as their dog performs the 'dance of the red dot." },
+          { text: "Add a cheerful caption to the screen", score: 'human', outcome: "You add a caption that reads 'Just your friendly neighborhood surveillance!' The abductee chuckles, and even the dog on the screen seems to appreciate the humor—though it's still staring directly at you." }
+        ]
+      },
+      {
+        name: "STRANGE_OBJECT",
+        x1: 74, y1: 700, x2: 199, y2: 773,
+        text: "It's shiny, strangely enticing, and you kind of want to touch it. What's the worst that could happen?",
+        examineTexts: [
+          "The object glimmers invitingly, almost as if it’s calling out to you. It's covered in strange markings that seem to pulse when you get close—probably best not to touch it... right?",
+          "The object emits a faint hum. It’s definitely not just a paperweight. Or if it is, it's a very ambitious one.",
+          "The markings on the object seem to shift slightly as you watch. Either it’s magic, or your eyes are playing tricks on you.",
+          "It’s shiny, and now you notice it's also slightly warm to the touch. It’s probably fine, right? Who doesn’t like a little warmth?"
+        ],
+        hasInteracted: false,
+        interactChoices: [
+          { text: "Lick the object to assert dominance", score: 'alien', outcome: "You give the object a quick lick. It tastes like space pennies. The abductee looks horrified, but at least now it’s clear who owns this shiny artifact." },
+          { text: "Back away slowly", score: 'human', outcome: "You decide it's best not to mess with mysterious glowing things. The abductee looks relieved, nodding as if to say, 'Yeah, let's not explode today.'" }
+        ]
+      },
+      {
+        name: "CONTROL_PANEL",
+        x1: 84, y1: 868, x2: 861, y2: 991,
+        text: "An intimidatingly large number of buttons. Surely pressing one couldn't hurt... right?",
+        examineTexts: [
+          "Buttons of all shapes and sizes, some flashing, others dull. There’s one button larger than the rest, almost inviting you to press it. What’s the worst that could happen?",
+          "You notice a button labeled 'Do Not Press.' It’s practically begging to be pressed. Why do they even make buttons like this?",
+          "The panel emits a soft hum, almost like it's waiting for you to do something. A green light blinks cheerily. It seems... encouraging?",
+          "You spot a lever that looks completely out of place—like it was added as an afterthought. You can't help but wonder what it does."
+        ],
+        hasInteracted: false,
+        interactChoices: [
+          { text: "Flip the lever marked 'Total Mayhem'", score: 'alien', outcome: "You flip the lever, and the ship's alarm immediately blares, accompanied by disco lights and a voice saying, 'Initiating chaos protocol. Good luck!' The abductee looks like they might faint, but you can’t stop grooving." },
+          { text: "Look for an instruction manual", score: 'human', outcome: "You rummage around until you find an instruction manual titled 'So You've Decided to Push Random Buttons.' The abductee looks relieved—at least someone is being sensible." }
+        ]
+      }
+    ];
+
+    function preload() {
+      bgImage = loadImage('assets/background.png', img => {
+        bgImage = img;
+      }, err => {
+        console.error("Background image failed to load");
+      });
+    }
+
+    function setup() {
+      examineWindow = select('#examine-window');
+            let welcomeMessage = "Welcome, Agent! You are the pride of planet U.F.O. (Universal Federation of Observation), and it's your mission to study these strange human creatures. Will you embrace your alien superiority, or be seduced by their quaint customs? Remember, failure means eternal paperwork back home. Click anywhere to begin.";
+      examineWindow.html(welcomeMessage);
+      examineWindow.style('display', 'block');
+      let canvas = createCanvas(1000, 1000);
+      canvas.parent('canvas-container');
+      image(bgImage, 0, 0, width, height); // Draw background once if it's static
+      examineWindow = select('#examine-window');
+      updateScoreDisplay();
+    }
+
+    function draw() {
+      if (bgImage) {
+        background(bgImage); // Draw background image if it has loaded
+      } else {
+        background(200); // Placeholder gray background until image loads
+      }
+
+      if (!gameEnded) {
+        checkInteractiveZones();
+        displayHoverText();
+        displayMessageBubble();
+        displayOptions();
+      }
+    }
+
+    function checkInteractiveZones() {
+      isHovering = false;
+      hoverText = "";
+
+      for (let zone of zones) {
+        if (isMouseOverZone(zone)) {
+          highlightZone(zone.x1, zone.y1, zone.x2 - zone.x1, zone.y2 - zone.y1);
+          isHovering = true;
+          hoverText = zone.text;
+        }
+      }
+
+      // Change cursor to pointer if hovering over an interactive zone
+      if (isHovering && options.length === 0) {
+        cursor('pointer');
+      } else {
+        cursor('default');
+      }
+    }
+
+    function isMouseOverZone(zone) {
+      return mouseX > zone.x1 && mouseX < zone.x2 && mouseY > zone.y1 && mouseY < zone.y2;
+    }
+
+    function highlightZone(x, y, w, h) {
+      noFill();
+      stroke('lightgreen');
+      strokeWeight(2);
+      rect(x, y, w, h);
+    }
+
+    function displayHoverText() {
+      if (hoverText !== "" && options.length === 0) {
+        fill(0, 0, 0, 200); // Black background with some transparency
+        noStroke();
+        rect(10, 10, textWidth(hoverText) + 20, 40, 5); // Background box with padding and rounded corners
+        fill(255); // White text color for better contrast
+        textSize(16);
+        textAlign(LEFT, CENTER);
+        text(hoverText, 20, 30);
+      }
+    }
+
+    function mousePressed() {
+      
+      if (examineWindow.style('display') === 'block' && examineWindow.html().includes('Welcome, Agent!')) {
+        examineWindow.style('display', 'none');
+        return;
+      }
+      if (gameEnded) return;  // Prevent further interactions once the game has ended
+      
+      if (options.length > 0) {
+        let startY = messageBubble.y - 20;
+        for (let i = 0; i < options.length; i++) {
+          let option = options[i];
+          let optionWidth = getCachedOptionWidth(option.label);
+          let optionHeight = 30;
+          if (
+            mouseX > messageBubble.x &&
+            mouseX < messageBubble.x + optionWidth &&
+            mouseY > startY + i * (optionHeight + 10) &&
+            mouseY < startY + i * (optionHeight + 10) + optionHeight
+          ) {
+            option.action();
+            return;
+          }
+        }
+      }
+
+      for (let zone of zones) {
+        if (isMouseOverZone(zone)) {
+          messageBubble = {
+            x: mouseX,
+            y: mouseY,
+            text: ""
+          };
+          options = [
+            { label: "EXAMINE", action: () => showExamineText(zone) }
+          ];
+
+          if (!zone.hasInteracted) {
+            options.push({ label: "INTERACT", action: () => showInteractOptions(zone) });
+          }
+
+          options.push({ label: "CANCEL", action: () => cancelMessage() });
+          return;
+        }
+      }
+    }
+
+    function displayMessageBubble() {
+      if (messageBubble) {
+        fill(255, 255, 255, 220); // White background with some transparency
+        stroke(0);
+        strokeWeight(2);
+        rect(messageBubble.x, messageBubble.y - 60, 200, 40, 5); // Message bubble
+        fill(0); // Black text color
+        textSize(16);
+        textAlign(LEFT, CENTER);
+        text("Select an action:", messageBubble.x + 10, messageBubble.y - 40);
+      }
+    }
+
+    function displayOptions() {
+      if (options.length > 0) {
+        let startY = messageBubble.y - 20;
+        for (let i = 0; i < options.length; i++) {
+          let option = options[i];
+          let optionWidth = getCachedOptionWidth(option.label);
+          let optionHeight = 30;
+          if (
+            mouseX > messageBubble.x &&
+            mouseX < messageBubble.x + optionWidth &&
+            mouseY > startY + i * (optionHeight + 10) &&
+            mouseY < startY + i * (optionHeight + 10) + optionHeight
+          ) {
+            cursor('pointer');
+          }
+          fill(200);
+          stroke(0);
+          rect(messageBubble.x, startY + i * (optionHeight + 10), optionWidth, optionHeight, 5);
+          fill(0);
+          noStroke();
+          textAlign(LEFT, CENTER);
+          text(option.label, messageBubble.x + 10, startY + i * (optionHeight + 10) + optionHeight / 2);
+        }
+      }
+    }
+
+    function getCachedOptionWidth(label) {
+      if (!cachedOptionWidths[label]) {
+        cachedOptionWidths[label] = textWidth(label) + 20;
+      }
+      return cachedOptionWidths[label];
+    }
+
+    function showExamineText(zone) {
+      let randomIndex = Math.floor(Math.random() * zone.examineTexts.length);
+      examineWindow.html(zone.examineTexts[randomIndex]);
+      examineWindow.style('display', 'block');
+      options = []; // Remove options after selecting EXAMINE
+    }
+
+    function showInteractOptions(zone) {
+      if (zone.hasInteracted) return;
+
+      options = zone.interactChoices.map(choice => {
+        return {
+          label: choice.text,
+          action: () => {
+            if (choice.score === 'alien') {
+              alienScore++;
+            } else if (choice.score === 'human') {
+              humanScore++;
+            }
+            zone.hasInteracted = true;
+            updateScoreDisplay();
+            examineWindow.html(choice.outcome); // Display interaction outcome in examine window
+            examineWindow.style('display', 'block');
+            options = []; // Remove options after selecting INTERACT
+            messageBubble = null; // Remove message bubble after interaction
+            
+            checkEndCondition(); // Check if game has ended after interaction
+          }
+        };
+      });
+    }
+
+    function cancelMessage() {
+      messageBubble = null;
+      options = [];
+      examineWindow.style('display', 'none');
+    }
+
+    function updateScoreDisplay() {
+      let scoreDisplay = select('#score-display');
+      scoreDisplay.html(`FAVORABILITY: ALIEN: ${alienScore} | HUMAN: ${humanScore}`);
+    }
+
+    function checkEndCondition() {
+      if (zones.every(zone => zone.hasInteracted)) {
+        gameEnded = true;  // Stop further interactions
+        let endingImage = alienScore > humanScore ? 'assets/alien_ending_background.png' : 'assets/human_ending_background.png';
+        bgImage = loadImage(endingImage);
+        
+        // Display ending message
+        examineWindow.html(alienScore > humanScore ? "You embraced your alien nature! The High Council on your home planet is pleased—no, thrilled—with your work. They said something about 'exemplary manipulation of inferior species,' but you just heard 'free vacation to Planet X' and tuned out the rest. The humans may be terrified, but you? You're living the dream." : "You found a human connection. And your reward? Well, the crew thought you'd enjoy the full abductee experience. After all, why just empathize when you can live it? As the straps tighten around your wrists, you realize that maybe making friends with the humans wasn't your brightest idea.");
+        examineWindow.style('display', 'block');
+        examineWindow.position(width / 2 - 150, height - 300); // Center bottom of the screen with larger text box
+      }
+    }
+  </script>
+</body>
+</html>
+
