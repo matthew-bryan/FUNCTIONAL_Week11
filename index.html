@@ -178,7 +178,7 @@
     ];
 
     function preload() {
-      bgImage = loadImage('assets/background.png', img => {
+      bgImage = loadImage('FUNCTIONAL_Week11/assets/background.png', img => {
         bgImage = img;
       }, err => {
         console.error("Background image failed to load");
@@ -394,7 +394,7 @@
     function checkEndCondition() {
       if (zones.every(zone => zone.hasInteracted)) {
         gameEnded = true;  // Stop further interactions
-        let endingImage = alienScore > humanScore ? 'assets/alien_ending_background.png' : 'assets/human_ending_background.png';
+        let endingImage = alienScore > humanScore ? 'FUNCTIONAL_Week11/assets/alien_ending_background.png' : 'FUNCTIONAL_Week11/assets/human_ending_background.png';
         bgImage = loadImage(endingImage);
         
         // Display ending message
